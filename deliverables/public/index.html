@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Student Entry System - Dept of Computer Science</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Import Html5Qrcode Library from CDN for camera scanning -->
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Main Header -->
+    <header class="main-header">
+      <div class="dept-brand">
+        <div class="dept-logo">🏛️</div>
+        <div>
+          <h1>Computer Science Department</h1>
+          <p class="subtitle">QR-Based Student Entry Portal</p>
+        </div>
+      </div>
+      
+      <!-- Top Navigation Tabs (Switch between Student & Admin views) -->
+      <nav class="view-tabs">
+        <button id="tab-student" class="tab-btn active" onclick="switchView('student')">📱 Student Portal</button>
+        <button id="tab-admin" class="tab-btn" onclick="switchView('admin')">🔑 Admin Dashboard</button>
+      </nav>
+    </header>
+
+    <main class="content-area">
+      
+      <!-- ================= STUDENT VIEW ================= -->
+      <section id="student-view" class="view-pane active">
+        <div class="mobile-frame">
+          
+          <!-- SCREEN 1: LOGIN / REGISTER -->
+          <div id="screen-login" class="screen active">
+            <div class="form-header">
+              <h2>Student Identification</h2>
+              <p>Please enter your credentials to proceed to the entry scanner.</p>
+            </div>
+            
+            <form id="login-form" onsubmit="handleLogin(event)">
+              <div class="form-group">
+                <label for="student-name">Full Name</label>
+                <input type="text" id="student-name" placeholder="e.g. John Doe" required autocomplete="name">
+              </div>
+              
+              <div class="form-group">
+                <label for="student-roll">Course (Unique ID)</label>
+                <input type="text" id="student-roll" placeholder="e.g. CS-2023-042" required autocomplete="off">
+                <small class="help-text">Use format: DEPT-YEAR-ID (e.g. CS-2023-005)</small>
+              </div>
+
+              <button type="submit" class="btn btn-primary">
+                Continue to Scanner ➡️
+              </button>
+            </form>
+          </div>
+
+          <!-- SCREEN 2: SCAN QR CODE -->
+          <div id="screen-scan" class="screen">
+            <div class="scan-header">
+              <button class="btn-back" onclick="goToScreen('login')">⬅️ Back</button>
+              <div class="user-chip">
+                <span>Student: <strong id="user-display-name">...</strong> (<span id="user-display-roll">...</span>)</span>
+              </div>
+            </div>
+
+            <div class="scan-body">
+              <h3>Scan Entrance QR Code</h3>
+              <p class="scan-instruction">Align the official department entrance QR poster inside the box below.</p>
+              
+              <!-- QR Scanner Camera Box -->
+              <div class="scanner-wrapper">
+                <div id="qr-reader"></div>
+                <div class="scanner-overlay" id="scanner-line">
+                  <div class="laser-line"></div>
+                </div>
+              </div>
+
+              <div class="scanner-controls">
+                <button id="btn-toggle-scan" class="btn btn-secondary" onclick="toggleCameraScanner()">
+                  Start Camera Scanner 📷
+                </button>
+              </div>
+
+              <!-- Manual simulation option for easy browser testing -->
+              <div class="simulator-box">
+                <p>No webcam? Or testing on a desktop?</p>
+                <button class="btn btn-accent" onclick="simulateSuccessfulScan()">
+                  ⚡ Quick Simulate Scan (DEPT_ENTRY_001)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- SCREEN 3: SUCCESS RESULT -->
+          <div id="screen-success" class="screen">
+            <div class="result-card success">
+              <div class="result-icon">✅</div>
+              <h2>Entry Marked Successfully!</h2>
+              <div class="result-details">
+                <p>Your entry is registered in the department logs.</p>
+                <div class="receipt">
+                  <div class="receipt-row"><span>Name:</span><strong id="success-name">John Doe</strong></div>
+                  <div class="receipt-row"><span>Course</span><strong id="success-roll">MCA sem 2</strong></div>
+                  <div class="receipt-row"><span>Timestamp:</span><span id="success-time">10:45 AM</span></div>
+                  <div class="receipt-row"><span>Token:</span><code>DEPT_ENTRY_001</code></div>
+                </div>
+              </div>
+              <button class="btn btn-primary" onclick="resetStudentPortal()">Done / Sign Out</button>
+            </div>
+          </div>
+
+          <!-- SCREEN 4: ERROR RESULT -->
+          <div id="screen-error" class="screen">
+            <div class="result-card error">
+              <div class="result-icon">❌</div>
+              <h2 id="error-title">Entry Refused</h2>
+              <p id="error-message">Entry already marked for today.</p>
+              <div class="result-details" id="error-details">
+                <!-- Additional dynamic feedback -->
+              </div>
+              <div class="button-group">
+                <button class="btn btn-secondary" onclick="goToScreen('scan')">🔄 Scan Again</button>
+                <button class="btn btn-border" onclick="resetStudentPortal()">🚪 Exit</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ================= ADMIN VIEW ================= -->
+      <section id="admin-view" class="view-pane">
+        <div class="admin-panel">
+          
+          <!-- Admin Dashboard Metrics -->
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-icon">👥</div>
+              <div class="metric-info">
+                <h3>Total Registrations</h3>
+                <p class="metric-val" id="metric-users">-</p>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon">📅</div>
+              <div class="metric-info">
+                <h3>Entries Today</h3>
+                <p class="metric-val highlight" id="metric-entries-today">-</p>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon">⏰</div>
+              <div class="metric-info">
+                <h3>Status</h3>
+                <p class="metric-val text-green">Online</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Table Header Controls -->
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2>Department Entry Logs</h2>
+              <p>Real-time list of all students currently checked in.</p>
+            </div>
+            <div class="panel-actions">
+              <input type="text" id="admin-search" placeholder="🔍 Search Roll No or Name..." oninput="filterAdminLogs()">
+              <button class="btn btn-secondary btn-sm" onclick="fetchEntries()">🔄 Refresh Logs</button>
+              <button class="btn btn-accent btn-sm" onclick="exportToCSV()">📤 Export CSV</button>
+            </div>
+          </div>
+
+          <!-- Entry Table -->
+          <div class="table-container">
+            <table id="logs-table">
+              <thead>
+                <tr>
+                  <th>S.No</th>
+                  <th>Student Name</th>
+                  <th>Roll Number</th>
+                  <th>Check-In Time</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="logs-tbody">
+                <tr>
+                  <td colspan="6" class="td-loading">Click Refresh Logs or record a new entry...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>&copy; 2026 Department of Computer Science. Built for Academic Administration.</p>
+    </footer>
+  </div>
+
+  <!-- Main JavaScript Logic -->
+  <script src="script.js"></script>
+</body>
+</html>
