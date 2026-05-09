@@ -2,6 +2,7 @@
 let currentUser = null; // Stores logged-in student user { id, name, roll_number }
 let qrScanner = null; // Holds Html5Qrcode instance
 let isScanning = false; // Scanner status flag
+let isProcessingScan = false; // Prevents double submission
 let apiLogsCache = []; // Cache of admin entries for quick local filtering
 
 // API Base URL (Configurable to relative paths since we serve front/back together)
@@ -142,6 +143,7 @@ async function toggleCameraScanner() {
     toggleBtn.classList.add('btn-secondary');
     laserLine.style.display = 'none';
   } else {
+    isProcessingScan = false;
     // Instantiate camera scanner
     qrScanner = new Html5Qrcode("qr-reader");
     toggleBtn.innerText = 'Initializing Camera...';
@@ -197,6 +199,9 @@ async function stopCameraScanner() {
  * Action to process check-in submission with backend API
  */
 async function handleMarkEntry(qrCodeValue) {
+  if (isProcessingScan) return;
+  isProcessingScan = true;
+
   if (!currentUser) {
     alert("Session expired. Please log in again.");
     goToScreen('login');
@@ -300,6 +305,25 @@ async function fetchEntries() {
     }
   } catch (error) {
     console.error("Admin fetch entries API error:", error);
+  }
+}
+
+// Clear all entry logs
+async function clearAllLogs() {
+  if (!confirm('Are you sure you want to permanently delete all entry logs? This cannot be undone.')) return;
+  
+  try {
+    const response = await fetch(`${API_BASE}/entries`, { method: 'DELETE' });
+    if (response.ok) {
+      apiLogsCache = [];
+      renderAdminLogs([]);
+      fetchStats();
+      alert('All logs cleared successfully.');
+    } else {
+      alert('Failed to clear logs.');
+    }
+  } catch (error) {
+    alert('Network error while clearing logs.');
   }
 }
 

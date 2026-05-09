@@ -261,6 +261,33 @@ app.get('/api/entries', (req, res) => {
   });
 });
 
+/**
+ * API Endpoint: DELETE /api/entries
+ * Description: Clears all entry logs from the database.
+ */
+app.delete('/api/entries', (req, res) => {
+  db.run('DELETE FROM entries', (err) => {
+    if (err) {
+      console.error('DB delete entries error:', err.message);
+      return res.status(500).json({ error: 'Failed to clear entries' });
+    }
+    res.status(200).json({ success: true, message: 'All entries cleared successfully' });
+  });
+});
+
+// Auto-cleanup: Runs once a day to remove logs older than 30 days
+setInterval(() => {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const cutoffStr = thirtyDaysAgo.toISOString().replace('T', ' ').split('.')[0];
+  
+  db.run("DELETE FROM entries WHERE timestamp < ?", [cutoffStr], function(err) {
+    if (!err && this.changes > 0) {
+      console.log(`[Auto-Cleanup] Deleted ${this.changes} entries older than 30 days.`);
+    }
+  });
+}, 24 * 60 * 60 * 1000); // 24 hours
+
 // Simple diagnostics route
 app.get('/api/stats', (req, res) => {
   const stats = {};

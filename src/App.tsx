@@ -291,23 +291,16 @@ export default function App() {
 
   const filteredEntries = getFilteredEntries();
 
-  // Export to CSV
-  const exportToCSV = () => {
-    if (filteredEntries.length === 0) {
-      alert("No entries to export");
-      return;
-    }
-
+  // Export CSV
+  const exportCSV = () => {
+    if (filteredEntries.length === 0) return;
     let csv = "S.No,Student Name,Roll Number,Date,Time,Timestamp\n";
-
     filteredEntries.forEach((entry, index) => {
       const date = parseDate(entry.timestamp);
       const dateStr = date.toLocaleDateString();
-      const timeStr = date.toLocaleTimeString();
-      
-      csv += `${index + 1},"${entry.name}","${entry.roll_number}","${dateStr}","${timeStr}","${entry.timestamp}"\n`;
+      const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      csv += `${filteredEntries.length - index},"${entry.name}","${entry.roll_number}","${dateStr}","${timeStr}","${entry.timestamp}"\n`;
     });
-
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -317,11 +310,23 @@ export default function App() {
     window.URL.revokeObjectURL(url);
   };
 
-  // Cleanup old entries (older than 90 days)
-  const cleanupOldEntries = () => {
-    alert("Database cleanup must be managed from the backend server.");
+  // Clear Logs
+  const handleClearLogs = async () => {
+    if (!window.confirm('Are you sure you want to permanently delete all entry logs? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/entries`, { method: 'DELETE' });
+      if (res.ok) {
+        setEntries([]);
+        setAdminStats({ ...adminStats, entries_today: 0 });
+      } else {
+        alert('Failed to clear logs.');
+      }
+    } catch (err) {
+      alert('Network error while clearing logs.');
+    }
   };
 
+  // Cleanup is now handled by handleClearLogs
   // ==================== UI COMPONENTS ====================
 
   return (
@@ -655,10 +660,10 @@ export default function App() {
                     <Download className="w-4 h-4" /> Export CSV
                   </button>
                   <button
-                    onClick={cleanupOldEntries}
+                    onClick={handleClearLogs}
                     className="flex items-center gap-2 px-4 py-2 bg-rose-600/90 hover:bg-rose-600 rounded-xl text-sm transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" /> Cleanup (90+ days)
+                    <Trash2 className="w-4 h-4" /> Clear All Logs
                   </button>
                 </div>
               </div>
