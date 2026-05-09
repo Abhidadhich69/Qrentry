@@ -236,6 +236,24 @@ app.post('/api/mark-entry', (req, res) => {
 });
 
 /**
+ * API Endpoint: POST /api/admin-login
+ * Description: Securely authenticates admin using server-side environment variables.
+ */
+app.post('/api/admin-login', (req, res) => {
+  const { username, password } = req.body;
+  
+  // Use environment variables for secure credentials, with safe fallback for testing
+  const validUsername = process.env.ADMIN_USERNAME || 'admin';
+  const validPassword = process.env.ADMIN_PASSWORD || 'admin123';
+
+  if (username === validUsername && password === validPassword) {
+    return res.status(200).json({ success: true, message: 'Authenticated' });
+  } else {
+    return res.status(401).json({ error: 'Invalid username or password' });
+  }
+});
+
+/**
  * API Endpoint: GET /api/entries
  * Description: Fetches all entry logs for the department admin dashboard (sorted by newest).
  */

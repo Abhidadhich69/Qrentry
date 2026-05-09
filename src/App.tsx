@@ -23,12 +23,6 @@ interface Entry {
   roll_number?: string;
 }
 
-interface AdminUser {
-  username: string;
-  password: string;
-}
-
-const ADMIN_CREDENTIALS: AdminUser = { username: 'admin', password: 'admin123' };
 const VALID_QR_CODE = 'DEPT_ENTRY_001';
 const API_BASE_URL = 'https://qrentry-780w.onrender.com/api';
 
@@ -147,23 +141,33 @@ export default function App() {
   };
 
   // Admin Login
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAdminError('');
 
-    if (adminUsername === ADMIN_CREDENTIALS.username && adminPassword === ADMIN_CREDENTIALS.password) {
-      const adminUser: User = { id: 0, name: 'Administrator', roll_number: 'ADMIN', role: 'admin' };
-      const adminToken = btoa(JSON.stringify({ id: 0, role: 'admin', exp: Date.now() + 86400000 }));
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: adminUsername, password: adminPassword })
+      });
+      
+      if (res.ok) {
+        const adminUser: User = { id: 0, name: 'Administrator', roll_number: 'ADMIN', role: 'admin' };
+        const adminToken = btoa(JSON.stringify({ id: 0, role: 'admin', exp: Date.now() + 86400000 }));
 
-      localStorage.setItem('qr_token', adminToken);
-      localStorage.setItem('qr_user', JSON.stringify(adminUser));
+        localStorage.setItem('qr_token', adminToken);
+        localStorage.setItem('qr_user', JSON.stringify(adminUser));
 
-      setCurrentUser(adminUser);
-      setIsLoggedIn(true);
-      setCurrentView('admin');
-      fetchAdminData();
-    } else {
-      setAdminError('Invalid username or password');
+        setCurrentUser(adminUser);
+        setIsLoggedIn(true);
+        setCurrentView('admin');
+        fetchAdminData();
+      } else {
+        setAdminError('Invalid username or password');
+      }
+    } catch (err) {
+      setAdminError('Network error connecting to backend');
     }
   };
 
@@ -591,9 +595,6 @@ export default function App() {
                 </button>
               </form>
 
-              {/* <div className="mt-4 text-center text-xs text-slate-500">
-                Demo credentials: <span className="font-mono text-amber-400">admin / admin123</span>
-              </div> */}
             </div>
           </div>
         )}
