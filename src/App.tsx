@@ -654,7 +654,7 @@ export default function App() {
                     <QrCode className="w-4 h-4" /> View QR Poster
                   </button>
                   <button
-                    onClick={exportToCSV}
+                    onClick={exportCSV}
                     className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-sm transition-colors"
                   >
                     <Download className="w-4 h-4" /> Export CSV
