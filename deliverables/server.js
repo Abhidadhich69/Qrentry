@@ -27,15 +27,35 @@ const db = new sqlite3.Database(dbPath, (err) => {
 // Create tables if they do not exist
 function initializeDatabase() {
   db.serialize(() => {
-    // 1. Users Table
-    db.run(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        roll_number TEXT NOT NULL
-      )
-    `, (err) => {
-      if (err) console.error('Error creating users table:', err.message);
+    // 1. Check and Migrate Users Table
+    db.get("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'", (err, row) => {
+      if (row && row.sql.includes('UNIQUE')) {
+        console.log('Migrating users table to remove UNIQUE constraint...');
+        db.serialize(() => {
+          db.run('BEGIN TRANSACTION');
+          db.run(`
+            CREATE TABLE users_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT NOT NULL,
+              roll_number TEXT NOT NULL
+            )
+          `);
+          db.run('INSERT INTO users_new SELECT * FROM users');
+          db.run('DROP TABLE users');
+          db.run('ALTER TABLE users_new RENAME TO users');
+          db.run('COMMIT');
+          console.log('Migration complete.');
+        });
+      } else if (!row) {
+        // Create table from scratch if it doesn't exist
+        db.run(`
+          CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            roll_number TEXT NOT NULL
+          )
+        `);
+      }
     });
 
     // 2. Entries Table
