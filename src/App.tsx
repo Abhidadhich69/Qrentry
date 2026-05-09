@@ -32,6 +32,13 @@ const ADMIN_CREDENTIALS: AdminUser = { username: 'admin', password: 'admin123' }
 const VALID_QR_CODE = 'DEPT_ENTRY_001';
 const API_BASE_URL = 'https://qrentry-780w.onrender.com/api';
 
+// Helper to parse SQLite UTC timestamps correctly
+const parseDate = (ts: string) => {
+  if (!ts) return new Date();
+  if (ts.includes('T')) return new Date(ts);
+  return new Date(ts.replace(' ', 'T') + 'Z');
+};
+
 export default function App() {
   // Global State
   const [currentView, setCurrentView] = useState<'student' | 'admin'>('student');
@@ -227,7 +234,7 @@ export default function App() {
       const data = await res.json();
       
       if (res.ok || res.status === 201) {
-        const time = new Date(data.entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const time = parseDate(data.entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         setScanMessage(`Entry marked successfully at ${time}`);
         setScanScreen('success');
       } else {
@@ -261,10 +268,10 @@ export default function App() {
     // Filter by date
     if (filterDate) {
       const filterDateStr = new Date(filterDate).toDateString();
-      filtered = filtered.filter(entry => new Date(entry.timestamp).toDateString() === filterDateStr);
+      filtered = filtered.filter(entry => parseDate(entry.timestamp).toDateString() === filterDateStr);
     }
 
-    return filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return filtered.sort((a, b) => parseDate(b.timestamp).getTime() - parseDate(a.timestamp).getTime());
   };
 
   const filteredEntries = getFilteredEntries();
@@ -279,7 +286,7 @@ export default function App() {
     let csv = "S.No,Student Name,Roll Number,Date,Time,Timestamp\n";
 
     filteredEntries.forEach((entry, index) => {
-      const date = new Date(entry.timestamp);
+      const date = parseDate(entry.timestamp);
       const dateStr = date.toLocaleDateString();
       const timeStr = date.toLocaleTimeString();
       
@@ -670,7 +677,7 @@ export default function App() {
                       </tr>
                     ) : (
                       filteredEntries.map((entry, index) => {
-                        const date = new Date(entry.timestamp);
+                        const date = parseDate(entry.timestamp);
                         return (
                           <tr key={entry.entry_id || entry.id} className="border-b border-slate-800 hover:bg-slate-950/30">
                             <td className="px-6 py-4 text-slate-400">{index + 1}</td>
