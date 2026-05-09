@@ -32,7 +32,7 @@ function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        roll_number TEXT UNIQUE NOT NULL
+        roll_number TEXT NOT NULL
       )
     `, (err) => {
       if (err) console.error('Error creating users table:', err.message);
@@ -69,7 +69,7 @@ app.post('/api/register-or-login', (req, res) => {
   const cleanName = name.trim();
 
   // Check if student exists
-  db.get('SELECT * FROM users WHERE roll_number = ?', [cleanRollNumber], (err, user) => {
+  db.get('SELECT * FROM users WHERE name = ? AND roll_number = ?', [cleanName, cleanRollNumber], (err, user) => {
     if (err) {
       console.error('Database query error:', err.message);
       return res.status(500).json({ error: 'Database query failed' });
