@@ -15,7 +15,8 @@ interface User {
 }
 
 interface Entry {
-  id: number;
+  entry_id: number;
+  id?: number;
   user_id: number;
   timestamp: string;
   name?: string;
@@ -29,6 +30,7 @@ interface AdminUser {
 
 const ADMIN_CREDENTIALS: AdminUser = { username: 'admin', password: 'admin123' };
 const VALID_QR_CODE = 'DEPT_ENTRY_001';
+const API_BASE_URL = 'https://qrentry-780w.onrender.com/api';
 
 export default function App() {
   // Global State
@@ -49,69 +51,80 @@ export default function App() {
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState('');
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [adminStats, setAdminStats] = useState({ total_students: 0, entries_today: 0 });
   const [filterDate, setFilterDate] = useState('');
   const [showQRPoster, setShowQRPoster] = useState(false);
 
+  const fetchAdminData = async () => {
+    try {
+      const [entriesRes, statsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/entries`),
+        fetch(`${API_BASE_URL}/stats`)
+      ]);
+      if (entriesRes.ok) {
+        const data = await entriesRes.json();
+        setEntries(data.entries);
+      }
+      if (statsRes.ok) {
+        const data = await statsRes.json();
+        setAdminStats(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch admin data", err);
+    }
+  };
+
   // Load from localStorage on mount
   useEffect(() => {
-    const savedUsers = localStorage.getItem('qr_users');
-    const savedEntries = localStorage.getItem('qr_entries');
     const savedToken = localStorage.getItem('qr_token');
     const savedUser = localStorage.getItem('qr_user');
-
-    if (savedUsers) setUsers(JSON.parse(savedUsers));
-    if (savedEntries) setEntries(JSON.parse(savedEntries));
 
     if (savedToken && savedUser) {
       const parsedUser = JSON.parse(savedUser);
       setCurrentUser(parsedUser);
       setIsLoggedIn(true);
       setCurrentView(parsedUser.role);
+      if (parsedUser.role === 'admin') {
+        fetchAdminData();
+      }
     }
   }, []);
-
-  // Persist to localStorage
-  const saveToStorage = (newUsers: User[], newEntries: Entry[]) => {
-    localStorage.setItem('qr_users', JSON.stringify(newUsers));
-    localStorage.setItem('qr_entries', JSON.stringify(newEntries));
-    setUsers(newUsers);
-    setEntries(newEntries);
-  };
 
   // ==================== AUTHENTICATION ====================
 
   // Student Login / Register
-  const handleStudentLogin = (e: React.FormEvent) => {
+  const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentName.trim() || !studentRoll.trim()) return;
 
     const roll = studentRoll.trim().toUpperCase();
     const name = studentName.trim();
 
-    let existingUser = users.find(u => u.roll_number === roll && u.role === 'student');
-
-    let user: User;
-
-    if (existingUser) {
-      user = existingUser;
-    } else {
-      // Create new student
-      const newId = users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1;
-      user = { id: newId, name, roll_number: roll, role: 'student' };
-      const newUsers = [...users, user];
-      saveToStorage(newUsers, entries);
+    try {
+      const res = await fetch(`${API_BASE_URL}/register-or-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, roll_number: roll })
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        const user: User = { ...data.user, role: 'student' };
+        const newToken = btoa(JSON.stringify({ id: user.id, role: user.role, exp: Date.now() + 86400000 }));
+        
+        localStorage.setItem('qr_token', newToken);
+        localStorage.setItem('qr_user', JSON.stringify(user));
+        
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        setScanScreen('scan');
+      } else {
+        alert(data.error || "Failed to login");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network error. Could not connect to backend.");
     }
-
-    // Generate simple JWT-like token
-    const newToken = btoa(JSON.stringify({ id: user.id, role: user.role, exp: Date.now() + 86400000 }));
-
-    localStorage.setItem('qr_token', newToken);
-    localStorage.setItem('qr_user', JSON.stringify(user));
-
-    setCurrentUser(user);
-    setIsLoggedIn(true);
-    setScanScreen('scan');
   };
 
   // Admin Login
@@ -129,6 +142,7 @@ export default function App() {
       setCurrentUser(adminUser);
       setIsLoggedIn(true);
       setCurrentView('admin');
+      fetchAdminData();
     } else {
       setAdminError('Invalid username or password');
     }
@@ -188,7 +202,7 @@ export default function App() {
   };
 
   // Handle QR Scan Result
-  const handleQRScan = (qrValue: string) => {
+  const handleQRScan = async (qrValue: string) => {
     stopScanner();
 
     if (!currentUser || currentUser.role !== 'student') {
@@ -197,39 +211,34 @@ export default function App() {
       return;
     }
 
-    // Validate QR Code
+    // Validate QR Code format
     if (qrValue !== VALID_QR_CODE) {
       setScanMessage(`Invalid QR Code. Expected: ${VALID_QR_CODE}`);
       setScanScreen('error');
       return;
     }
 
-    // Check for duplicate entry today
-    const today = new Date().toDateString();
-    const hasEntryToday = entries.some(entry => 
-      entry.user_id === currentUser.id && 
-      new Date(entry.timestamp).toDateString() === today
-    );
-
-    if (hasEntryToday) {
-      setScanMessage('Entry already marked for today');
+    try {
+      const res = await fetch(`${API_BASE_URL}/mark-entry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: currentUser.id, qr_code: qrValue })
+      });
+      const data = await res.json();
+      
+      if (res.ok || res.status === 201) {
+        const time = new Date(data.entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setScanMessage(`Entry marked successfully at ${time}`);
+        setScanScreen('success');
+      } else {
+        setScanMessage(data.message || data.error || 'Failed to mark entry');
+        setScanScreen('error');
+      }
+    } catch (err) {
+      console.error(err);
+      setScanMessage('Network error. Failed to communicate with server.');
       setScanScreen('error');
-      return;
     }
-
-    // Save new entry
-    const newEntry: Entry = {
-      id: entries.length > 0 ? Math.max(...entries.map(e => e.id)) + 1 : 1,
-      user_id: currentUser.id,
-      timestamp: new Date().toISOString()
-    };
-
-    const newEntries = [...entries, newEntry];
-    saveToStorage(users, newEntries);
-
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setScanMessage(`Entry marked successfully at ${time}`);
-    setScanScreen('success');
   };
 
   // Simulate QR Scan (for testing without camera)
@@ -248,23 +257,14 @@ export default function App() {
   const getFilteredEntries = () => {
     let filtered = [...entries];
 
-    // Join with user data
-    const joined = filtered.map(entry => {
-      const user = users.find(u => u.id === entry.user_id);
-      return {
-        ...entry,
-        name: user?.name || 'Unknown',
-        roll_number: user?.roll_number || 'N/A'
-      };
-    });
-
+    // The backend already joins name and roll_number
     // Filter by date
     if (filterDate) {
       const filterDateStr = new Date(filterDate).toDateString();
-      joined.filter(entry => new Date(entry.timestamp).toDateString() === filterDateStr);
+      filtered = filtered.filter(entry => new Date(entry.timestamp).toDateString() === filterDateStr);
     }
 
-    return joined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   };
 
   const filteredEntries = getFilteredEntries();
@@ -297,17 +297,7 @@ export default function App() {
 
   // Cleanup old entries (older than 90 days)
   const cleanupOldEntries = () => {
-    if (!confirm("Delete all entries older than 90 days?")) return;
-
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-    const newEntries = entries.filter(entry => 
-      new Date(entry.timestamp) > ninetyDaysAgo
-    );
-
-    saveToStorage(users, newEntries);
-    alert(`Cleaned up ${entries.length - newEntries.length} old entries`);
+    alert("Database cleanup must be managed from the backend server.");
   };
 
   // ==================== UI COMPONENTS ====================
@@ -587,7 +577,7 @@ export default function App() {
                 <div className="flex items-center gap-3">
                   <Users className="w-8 h-8 text-indigo-400" />
                   <div>
-                    <div className="text-3xl font-bold">{users.length}</div>
+                    <div className="text-3xl font-bold">{adminStats.total_students}</div>
                     <div className="text-sm text-slate-400">Registered Students</div>
                   </div>
                 </div>
@@ -606,7 +596,7 @@ export default function App() {
                   <Calendar className="w-8 h-8 text-amber-400" />
                   <div>
                     <div className="text-3xl font-bold">
-                      {entries.filter(e => new Date(e.timestamp).toDateString() === new Date().toDateString()).length}
+                      {adminStats.entries_today}
                     </div>
                     <div className="text-sm text-slate-400">Entries Today</div>
                   </div>
@@ -682,7 +672,7 @@ export default function App() {
                       filteredEntries.map((entry, index) => {
                         const date = new Date(entry.timestamp);
                         return (
-                          <tr key={entry.id} className="border-b border-slate-800 hover:bg-slate-950/30">
+                          <tr key={entry.entry_id || entry.id} className="border-b border-slate-800 hover:bg-slate-950/30">
                             <td className="px-6 py-4 text-slate-400">{index + 1}</td>
                             <td className="px-6 py-4 font-medium">{entry.name}</td>
                             <td className="px-6 py-4 font-mono text-indigo-400">{entry.roll_number}</td>
