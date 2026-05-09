@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -182,8 +182,11 @@ export default function App() {
 
   // ==================== QR SCANNING ====================
 
+  const isProcessingRef = useRef(false);
+
   const startScanner = async () => {
     if (!currentUser) return;
+    isProcessingRef.current = false;
 
     const qrCodeId = 'qr-reader';
     try {
@@ -219,6 +222,9 @@ export default function App() {
 
   // Handle QR Scan Result
   const handleQRScan = async (qrValue: string) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+    
     stopScanner();
 
     if (!currentUser || currentUser.role !== 'student') {
