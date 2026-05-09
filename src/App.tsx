@@ -81,7 +81,7 @@ export default function App() {
     }
   };
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount and setup polling for Admin
   useEffect(() => {
     const savedToken = localStorage.getItem('qr_token');
     const savedUser = localStorage.getItem('qr_user');
@@ -91,11 +91,20 @@ export default function App() {
       setCurrentUser(parsedUser);
       setIsLoggedIn(true);
       setCurrentView(parsedUser.role);
-      if (parsedUser.role === 'admin') {
-        fetchAdminData();
-      }
     }
   }, []);
+
+  // Poll Admin Data every 5 seconds if viewing admin dashboard
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    if (isLoggedIn && currentView === 'admin') {
+      fetchAdminData(); // fetch immediately
+      intervalId = setInterval(fetchAdminData, 3000); // then every 3 seconds
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isLoggedIn, currentView]);
 
   // ==================== AUTHENTICATION ====================
 
