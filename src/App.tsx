@@ -61,6 +61,7 @@ export default function App() {
   const [adminStats, setAdminStats] = useState({ total_students: 0, entries_today: 0 });
   const [filterDate, setFilterDate] = useState('');
   const [showQRPoster, setShowQRPoster] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'error'>('connecting');
 
   const fetchAdminData = async () => {
     try {
@@ -68,16 +69,18 @@ export default function App() {
         fetch(`${API_BASE_URL}/entries`),
         fetch(`${API_BASE_URL}/stats`)
       ]);
-      if (entriesRes.ok) {
-        const data = await entriesRes.json();
-        setEntries(data.entries);
-      }
-      if (statsRes.ok) {
-        const data = await statsRes.json();
-        setAdminStats(data);
+      if (entriesRes.ok && statsRes.ok) {
+        const entriesData = await entriesRes.json();
+        const statsData = await statsRes.json();
+        setEntries(entriesData.entries);
+        setAdminStats(statsData);
+        setConnectionStatus('connected');
+      } else {
+        setConnectionStatus('error');
       }
     } catch (err) {
-      console.error("Failed to fetch admin data", err);
+      // Silently handle network errors to prevent console spam
+      setConnectionStatus('error');
     }
   };
 
@@ -672,7 +675,19 @@ export default function App() {
             {/* Entries Table */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-                <h3 className="font-semibold">Entry Logs</h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="font-semibold">Entry Logs</h3>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700">
+                    <div className={`w-2 h-2 rounded-full ${
+                      connectionStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                      connectionStatus === 'connecting' ? 'bg-amber-500 animate-pulse' :
+                      'bg-rose-500'
+                    }`}></div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                      {connectionStatus === 'connected' ? 'Live' : connectionStatus === 'connecting' ? 'Connecting' : 'Reconnecting...'}
+                    </span>
+                  </div>
+                </div>
                 <span className="text-xs text-slate-400">{filteredEntries.length} records</span>
               </div>
 
